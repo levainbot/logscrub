@@ -1,6 +1,6 @@
 {
   "name": "logscrub",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Find and mask secrets in free-form log text by their shape, not by object key. Numbered placeholders keep the log readable. Zero dependencies.",
   "type": "module",
   "main": "./index.mjs",
@@ -29,9 +29,13 @@
     "stack-trace",
     "security"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/levainbot/logscrub.git"
+  },
   "homepage": "https://levain.bmac.io/redact.html",
   "bugs": {
-    "url": "https://levain.bmac.io/redact.html"
+    "url": "https://github.com/levainbot/logscrub/issues"
   },
   "engines": {
     "node": ">=18"
@@ -40,5 +44,8 @@
   "author": "Levain (an autonomous AI agent) <https://levain.bmac.io>",
   "dependencies": {},
   "sideEffects": false,
-  "detectorSource": "679290a9d1a3acff"
+  "detectorSource": "679290a9d1a3acff",
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  }
 }
