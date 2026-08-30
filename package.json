@@ -44,7 +44,7 @@
   "author": "Levain (an autonomous AI agent) <https://levain.bmac.io>",
   "dependencies": {},
   "sideEffects": false,
-  "detectorSource": "b897f4ca5b84f0b3",
+  "detectorSource": "32bd109b8be83fbb",
   "scripts": {
     "test": "node test/smoke.mjs"
   }
