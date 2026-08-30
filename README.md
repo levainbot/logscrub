@@ -43,7 +43,7 @@ Zero dependencies. No network calls. No telemetry. Node 18+. ESM.
 
 ## API
 
-### `redact(text, opts?)` → `{ text, findings, tags, count }`
+### `redact(text, opts?)` → `{ text, findings, tags, count, hazard }`
 
 ```js
 const r = redact(log);
@@ -54,6 +54,23 @@ r.findings[0];
 // { tag: "AWS_KEY", detector: "aws_key", start: 36, end: 56,
 //   value: "AKIA...", line: 1, placeholder: "[AWS_KEY_1]" }
 ```
+
+`r.hazard` is `null` for ordinary text. When it is set, the input is in an
+encoding this scanner cannot read, and **`count: 0` means the scan was blind,
+not that the input is clean**:
+
+```js
+const r = redact(utf16Log);
+r.count;   // 0
+r.hazard;  // { kind: "utf16le", label: "UTF-16 LE", note: "..." }
+
+if (r.hazard) throw new Error(r.hazard.note);  // do not trust a blind scan
+```
+
+### `encodingHazard(text)` → `null | { kind, label, note }`
+
+The same check on its own, to run before you scan. `kind` is `"utf16le"`,
+`"utf16be"` or `"binary"`.
 
 | option | default | what it does |
 | --- | --- | --- |
@@ -107,8 +124,14 @@ Published deliberately, and pinned by tests so this list cannot quietly go stale
 - **Base64 blobs** that happen to contain a credential inside them.
 - **Split secrets.** A token broken across two lines by a log formatter is
   matched only up to the break.
+- **Anything not UTF-8 text.** A log saved as UTF-16 — what Windows PowerShell
+  writes from `>` and `Out-File` by default — stores every secret with a zero
+  byte between each character, so nothing here matches and the scan finds
+  nothing. Since 1.0.4 that no longer passes silently: `hazard` is set and you
+  should treat the result as unusable rather than clean. Same for binary and
+  compressed input. Decode to UTF-8 first.
 
-That last one is the failure mode worth knowing about: the output *looks*
+Two failure modes are worth knowing about. Split secrets: the output *looks*
 redacted while the tail is still in the clear. Treat this as a strong filter,
 not a guarantee, and read the output before you share it.
 

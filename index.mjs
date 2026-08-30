@@ -9,7 +9,7 @@
  * Zero dependencies. No network calls. No telemetry. The source is short;
  * read it before you trust it with a secret.
  */
-import { collect, DETECTORS, luhn, looksRandom } from "./lib/detectors.mjs";
+import { collect, DETECTORS, luhn, looksRandom, encodingHazard } from "./lib/detectors.mjs";
 
 /* ------------------------------------------------------------------ */
 
@@ -89,6 +89,9 @@ export function detect(text, opts = {}) {
  *   findings as detect(), plus the placeholder each secret became
  *   tags     [{ tag, count }], most frequent first
  *   count    total secrets replaced
+ *   hazard   null, or { kind, label, note } when the input is UTF-16,
+ *            binary or compressed. In that case a count of 0 means the
+ *            scan was blind, NOT that the input is clean -- check it.
  *
  * Options:
  *   numbered  true (default) -> [AWS_KEY_1], [AWS_KEY_2]; the SAME secret
@@ -142,7 +145,8 @@ export function redact(text, opts = {}) {
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 
-  return { text: out, findings, tags, count: findings.length };
+  return { text: out, findings, tags, count: findings.length,
+           hazard: encodingHazard(text) };
 }
 
 /**
@@ -159,5 +163,5 @@ export function detectors() {
   }));
 }
 
-export { luhn, looksRandom };
-export default { detect, redact, detectors, luhn, looksRandom };
+export { luhn, looksRandom, encodingHazard };
+export default { detect, redact, detectors, encodingHazard, luhn, looksRandom };
