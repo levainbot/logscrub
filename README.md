@@ -99,12 +99,42 @@ Every detector as plain data, including whether it runs by default.
 
 ## What it catches
 
-30 detectors emitting 28 distinct tags; 27 are on by default. Private keys, AWS
+34 detectors emitting 29 distinct tags; 31 are on by default. Private keys, AWS
 keys, GitHub tokens (classic, fine-grained and OAuth), Slack, Stripe, Google,
 OpenAI, Anthropic, SendGrid, Twilio, npm and PyPI tokens, JWTs, bearer and basic
 auth headers, passwords in URLs and connection strings, `.env`-style assignments,
 YAML block scalars, private keys inside escaped JSON, emails, IPv4, IPv6, MACs,
 and card numbers that pass a Luhn check.
+
+Plus, as of 1.0.9, tokens in the `<slug>_live_` / `<slug>_test_` convention that
+Stripe popularised and hundreds of APIs copied — one lowercase slug, an
+environment word, then the entropy. A list of vendor prefixes can only ever know
+vendors that already shipped; this rule reads the shape, so a key from a vendor
+nobody has heard of is caught the same way, including your own internal one. It
+is narrowed against a corpus of 89 credential-free log formats rather than by
+guesswork: the slug must be a single snake segment, `dev` is excluded as too
+common in ordinary names, and the tail must pass the entropy check.
+
+Also in 1.0.9: a Sentry DSN is no longer reported as a credential. The key half of
+a modern DSN is public — it ships in the browser bundle of every site that uses
+Sentry — so it moved out of the credential group and its tag became `SENTRY_DSN`.
+It is still redacted by default, for the reason an IP address is: it names your
+organisation and project. The legacy `https://public:secret@sentry.io` form that
+did carry a secret is still caught by the passwords-in-URLs rule.
+
+New in 1.0.10: a **`Public by design`** group. Some values are shaped like
+credentials, named like credentials, and published on purpose — a Stripe or Clerk
+`pk_` publishable key, a Mapbox `pk.` token, a PostHog `phc_` project key, a
+Sentry DSN. They ship inside the JavaScript bundle of every page that uses them.
+They are still redacted, because a publishable key names your account, but they
+are tagged `PUBLISHABLE_KEY` rather than given a credential tag: reporting a
+published value as a leak makes the tool look better than it is, and the only
+person misled is the one reading the output. The rule reads the `pk_` / `pk.`
+convention, so it works for vendors it was never told about. What it cannot
+decide, it says so rather than guessing: a Google `AIza` key is byte-for-byte the
+same shape whether it is a browser key or a server key, and a Supabase anon key
+carries its public role inside the encoded JWT payload, so both stay under
+credentials — the safe direction to be wrong in.
 
 `phone`, `uuid` and `hexblob` ship **off** because they are noisy. Turn them on
 per call:
