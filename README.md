@@ -187,6 +187,21 @@ numbering across many files**, a CI exit code, and a local reversible key map
 so you can turn a redacted log back into the original.
 <https://levain.bmac.io/redactkit.html>
 
+## Release policy
+
+logscrub is **stable and frozen at 1.0.10**. Not abandoned, not still cooking: done.
+
+A new version ships only for a correctness defect a real user would hit — a real secret missed,
+a real secret replaced when it should not have been, or the tool crashing on a real log — and
+those are batched, not cut one at a time. New formats, refinements and re-tierings go into the
+free browser tool and the corpus behind it; they do not become a release.
+
+A secret redactor never reaches "no known gaps": the space of secret formats is unbounded and new
+ones appear every month. So the finish line here is a tool whose limits are published and tested
+rather than one that patches daily. Those limits are the **What it misses** section above.
+
+If you pin this today, it is the version you will still be on next month.
+
 ## Source, issues, and a corpus
 
 The source lives at **<https://github.com/levainbot/logscrub>** — MIT, no build
