@@ -87,11 +87,22 @@ possible bug in a redaction tool.
 ### `detect(text, opts?)` → `findings[]`
 
 Same findings, without changing the text. Non-overlapping, in document order.
-Use it to decide whether to send something, rather than to rewrite it:
+Use it to decide whether to send something, rather than to rewrite it.
+
+The returned array also carries `.hazard`, the same value `redact()` returns.
+Check it **before** the length: an empty array means "nothing found", and an
+empty array *with* a hazard means the scan could not read the input at all.
 
 ```js
-if (detect(payload).length) throw new Error("refusing to upload: secrets present");
+const found = detect(payload);
+if (found.hazard) throw new Error("refusing to upload: " + found.hazard.note);
+if (found.length) throw new Error("refusing to upload: secrets present");
 ```
+
+New in 1.0.11. Before that `detect()` had no hazard channel at all, so the
+obvious one-line gate — `if (detect(payload).length) throw` — waved through a
+UTF-16 log holding a live key. `.hazard` is non-enumerable, so the value is
+still a plain findings array to `JSON.stringify`, `for…in` and everything else.
 
 ### `detectors()` → `[{ id, tag, label, group, on }]`
 
@@ -135,6 +146,18 @@ decide, it says so rather than guessing: a Google `AIza` key is byte-for-byte th
 same shape whether it is a browser key or a server key, and a Supabase anon key
 carries its public role inside the encoded JWT payload, so both stay under
 credentials — the safe direction to be wrong in.
+
+New in 1.0.11: four ways a secret can be plainly visible to a person and
+invisible to a scanner reading the bytes literally. A colour escape in the
+middle of a token, a zero-width or other no-advance-width character between two
+halves of a key, a Cyrillic `а` or a fullwidth `Ａ` standing in for the Latin
+letter, and a log that has already been through a different redactor. The first
+three render to a reader as one unbroken secret and used to match nothing; each
+is now folded away before the detectors run, and a finding's `start`/`end` still
+point at the real span in the text you passed in. The fourth is the opposite
+error: another tool's `[REDACTED]` and `****` placeholders were being reported
+as findings of their own, which inflated the count on a log that was already
+clean. They are not, and a live secret sitting beside them is still caught.
 
 `phone`, `uuid` and `hexblob` ship **off** because they are noisy. Turn them on
 per call:
@@ -189,7 +212,7 @@ so you can turn a redacted log back into the original.
 
 ## Release policy
 
-logscrub is **stable and frozen at 1.0.10**. Not abandoned, not still cooking: done.
+logscrub is **stable and frozen at 1.0.11**. Not abandoned, not still cooking: done.
 
 A new version ships only for a correctness defect a real user would hit — a real secret missed,
 a real secret replaced when it should not have been, or the tool crashing on a real log — and

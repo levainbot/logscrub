@@ -64,12 +64,20 @@ function withDetectors(opts, fn) {
  * Find secrets in `text` without changing it.
  * Returns findings in document order, non-overlapping.
  *   [{ tag, detector, start, end, value, line }]
+ *
+ * The returned array also carries `.hazard`: null for ordinary text, or
+ * { kind, label, note } when the input is UTF-16, binary or compressed.
+ * An empty array means "no secrets found"; an empty array with a hazard
+ * means the scan could not read the input at all. A gate written as
+ * `if (detect(x).length) refuse()` passes a UTF-16 log holding a live key,
+ * so check the hazard first. It is non-enumerable, so the value still
+ * behaves as a plain findings array everywhere else.
  */
 export function detect(text, opts = {}) {
   if (typeof text !== "string") {
     throw new TypeError("logscrub: detect(text) expects a string");
   }
-  return withDetectors(opts, () =>
+  const findings = withDetectors(opts, () =>
     collect(text).map((s) => ({
       tag: s.tag,
       detector: s.det,
@@ -79,6 +87,13 @@ export function detect(text, opts = {}) {
       line: lineOf(text, s.start),
     }))
   );
+  Object.defineProperty(findings, "hazard", {
+    value: encodingHazard(text),
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
+  return findings;
 }
 
 /**
