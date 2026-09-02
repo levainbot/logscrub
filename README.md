@@ -36,7 +36,8 @@ That is the whole point: a redacted log you can still debug from.
 ## Install
 
 ```sh
-npm install logscrub
+npm install logscrub      # the library
+npx logscrub --help       # the command, no install at all
 ```
 
 Zero dependencies. No network calls. No telemetry. Node 18+. ESM.
@@ -209,13 +210,52 @@ The browser tool is the **source of truth** for the detector table in this
 package: it is copied here by a build step and a test fails if the copy goes
 stale, so the two cannot disagree.
 
+## The command line
+
+The same detectors, as a command. No install step: `npx` fetches it, runs it,
+and is done.
+
+```sh
+npm test 2>&1 | npx logscrub          # scrub before you paste it anywhere
+npx logscrub app.log -o safe.log      # share safe.log, keep app.log
+npx logscrub --check src/*.ts         # exit 1 if anything is found
+npx logscrub --list                   # every detector, and whether it is on
+```
+
+`--check` is the gate: it finds and reports, it does not rewrite, and it exits
+`1` on any finding, so a hook or a CI step can stop on it.
+
+**The report never prints the secret.** It names the file, the line and the
+detector; the value is withheld. A hook that echoes the credential into your
+terminal scrollback or a CI log has moved it somewhere new, not caught it.
+
+**It refuses what it cannot read.** Handed UTF-16 (what PowerShell's `>`
+writes), or binary, or compressed data, it exits `2` and says so, instead of
+reporting zero findings. A blind scan and a clean scan produce the same empty
+output, and only one of them is good news.
+
+### As a pre-commit hook
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/levainbot/logscrub
+    rev: v1.0.13
+    hooks:
+      - id: logscrub
+```
+
+`pre-commit install`, and every commit is scanned before it lands. Nothing
+leaves your machine. `git commit --no-verify` skips it when you need to.
+
 ## Not in this package
 
-`logscrub` redacts one string at a time. If you need it across a whole
-repository or a CI pipeline, there is a paid CLI, `redactkit`, that adds the
-four things a library call cannot do: piping files and stdin, **one stable
-numbering across many files**, a CI exit code, and a local reversible key map
-so you can turn a redacted log back into the original.
+`logscrub` reads text. If you need to hand a redacted log to someone and then
+read their reply, `redactkit` is a free MIT CLI that adds the parts a text-in
+text-out tool cannot do: a **local reversible key map** so you can turn a
+redacted log back into the original, byte sniffing so a legacy-encoded log is
+converted rather than destroyed, a policy file, and a *second look* that names
+the high-entropy strings it could not classify.
 <https://levain.bmac.io/redactkit.html>
 
 ## Release policy

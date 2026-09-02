@@ -1,0 +1,25 @@
+# pre-commit hook definitions for logscrub.
+#
+# In your repo's .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/levainbot/logscrub
+#       rev: v1.0.13
+#       hooks:
+#         - id: logscrub
+#
+# pre-commit clones this repo, installs it with npm, and runs the CLI over the
+# staged text files. Nothing leaves your machine and no secret is ever printed:
+# the report names the file, the line and the detector, not the value.
+
+- id: logscrub
+  name: logscrub (block committed secrets)
+  description: >-
+    Scan staged text files for credentials by their shape -- AWS keys, bearer
+    tokens, private key blocks, connection strings -- and block the commit if
+    any are found. Exits 2 rather than passing on a file it cannot read as
+    UTF-8, because a blind scan and a clean scan look identical.
+  entry: logscrub --check
+  language: node
+  types: [text]
+  stages: [pre-commit]
