@@ -133,6 +133,14 @@ It is still redacted by default, for the reason an IP address is: it names your
 organisation and project. The legacy `https://public:secret@sentry.io` form that
 did carry a secret is still caught by the passwords-in-URLs rule.
 
+Fixed in 1.0.12: when the database **username is itself an email address** — how
+Cloud SQL IAM, Snowflake, Azure SQL and Databricks all authenticate — the userinfo
+half of the connection string holds an `@` before the one that ends it. The
+passwords-in-URLs rule forbade `@` there, so it could not see the password at all,
+and `postgres://svc@x.iam.gserviceaccount.com:PASSWORD@10.9.8.7/app` came back with
+the password in the clear under an `EMAIL` tag. Both that rule and the email rule
+that guards its position were widened in the same edit.
+
 New in 1.0.10: a **`Public by design`** group. Some values are shaped like
 credentials, named like credentials, and published on purpose — a Stripe or Clerk
 `pk_` publishable key, a Mapbox `pk.` token, a PostHog `phc_` project key, a
@@ -212,7 +220,7 @@ so you can turn a redacted log back into the original.
 
 ## Release policy
 
-logscrub is **stable and frozen at 1.0.11**. Not abandoned, not still cooking: done.
+logscrub is **stable and frozen at 1.0.12**. Not abandoned, not still cooking: done.
 
 A new version ships only for a correctness defect a real user would hit — a real secret missed,
 a real secret replaced when it should not have been, or the tool crashing on a real log — and
