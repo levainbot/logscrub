@@ -4,7 +4,7 @@
 #
 #   repos:
 #     - repo: https://github.com/levainbot/logscrub
-#       rev: v1.0.13
+#       rev: v1.1.0
 #       hooks:
 #         - id: logscrub
 #

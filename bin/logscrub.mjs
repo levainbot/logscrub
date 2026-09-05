@@ -20,12 +20,14 @@ const USAGE = `logscrub ${VERSION} -- mask secrets in log text by their shape, n
 
 USAGE
   logscrub [options] [file ...]     redact to stdout; reads stdin when no file is given
+                                    (a lone - also means stdin). Placeholder numbering is
+                                    shared across files: one secret, one number.
   logscrub --check [file ...]       exit 1 if anything was found -- for hooks and CI
   logscrub --list                   every detector, and whether it is on by default
 
 OPTIONS
   -c, --check         find, do not rewrite. Report to stderr, exit 1 on any finding.
-      --json          emit JSON instead of text: {count, hazard, findings[, text]}
+      --json          emit JSON instead of text: {count, hazard, tags, findings[, text]}
   -o, --out FILE      write the redacted text here instead of stdout
       --plain         [TAG] instead of [TAG_1]; loses correlation, keeps brevity
       --prefix STR    put STR inside every placeholder, e.g. --prefix ACME_
@@ -42,13 +44,13 @@ EXIT CODES
   2  bad usage, an unreadable file, or an input this scanner cannot read honestly
 
 THE REPORT NEVER PRINTS THE SECRET
-  --check names the file, the line, the detector and the placeholder -- never the value.
+  --check names the file, the line, the detector and the tag -- never the value.
   A hook that echoes the credential into your terminal scrollback or a CI log has moved
   it somewhere new, not caught it.
 
 EXAMPLES
   npm test 2>&1 | npx logscrub              scrub before you paste it anywhere
-  npx logscrub --check $(git diff --cached --name-only)   gate a commit
+  git diff --cached --name-only | xargs -r npx logscrub --check   gate a commit
   npx logscrub app.log -o safe.log          share safe.log, keep app.log
 `;
 
@@ -92,16 +94,48 @@ function parseArgs(argv) {
   return o;
 }
 
+/* A NUL byte is the one thing a text log never contains, and the library's own
+   hazard check declines to judge inputs under 32 characters -- so a 22-byte binary
+   used to be scanned, reported clean, and written mangled to stdout. Bytes are the
+   right layer for this question, so it is asked here, before the decode. */
+function fromBytes(name, buf) {
+  if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+    fail(`${name} is gzip-compressed, so this scan would be blind.\n` +
+      `  Decompress it first: gunzip -c ${name} | logscrub`);
+  }
+  if (buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) {
+    fail(`${name} is a zip archive, so this scan would be blind.\n` +
+      `  Unpack it and scan the files inside.`);
+  }
+  /* ONLY below the library's 32-character floor. Above it, encodingHazard reads the
+     NUL pattern properly and names UTF-16LE/BE, which is a far more useful refusal than
+     "contains NUL bytes" -- so this must not shadow it. */
+  if (buf.length < 32 && buf.includes(0)) {
+    fail(`${name} contains NUL bytes, so it is not text and this scan would be blind.\n` +
+      `  Refusing rather than reporting it clean.`);
+  }
+  return { name, text: buf.toString("utf8") };
+}
+
 function readInput(files) {
-  if (!files.length) {
+  const stdin = () => {
+    /* Reading fd 0 from a terminal blocks forever. That turned the documented
+       `--check $(git diff --cached --name-only)` into a hung commit whenever
+       nothing was staged and the argument list came back empty. */
+    if (process.stdin.isTTY) {
+      fail("no input. Give a file, or pipe text in. Try --help.");
+    }
     let buf;
     try { buf = readFileSync(0); } catch { buf = Buffer.alloc(0); }
-    return [{ name: "(stdin)", text: buf.toString("utf8") }];
-  }
+    return fromBytes("(stdin)", buf);
+  };
+  if (!files.length) return [stdin()];
   return files.map((f) => {
+    if (f === "-") return stdin();
     try {
-      return { name: f, text: readFileSync(f, "utf8") };
+      return fromBytes(f, readFileSync(f));
     } catch (e) {
+      if (e && e.code === undefined && e.message === undefined) throw e;
       fail(`cannot read ${f}: ${e.code || e.message}`);
     }
   });
@@ -138,6 +172,17 @@ if (opts.list) {
   process.exit(0);
 }
 
+/* writeFileSync throwing raw put a Node stack trace on stderr and exited 1 --
+   the same code `--check` uses for "found a secret", so a full disk read as a leak. */
+function writeOut(file, body) {
+  try { writeFileSync(file, body); }
+  catch (e) { fail(`cannot write ${file}: ${e.code || e.message}`); }
+}
+
+if (opts.check && opts.out) {
+  fail("--out has no meaning with --check: the report goes to stderr, and there is no redacted text to write.");
+}
+
 const detOpts = { enable: opts.enable, disable: opts.disable };
 const chunks = readInput(opts.files);
 
@@ -169,27 +214,56 @@ if (opts.check) {
   process.exit(findings.length ? 1 : 0);
 }
 
-/* redact mode */
+/* redact mode.
+   redact() numbers per CALL, so scanning two files meant [AWS_KEY_1] in each of
+   them naming two DIFFERENT keys -- silently false, and correlation is the whole
+   reason the placeholders are numbered. opts.mask is the library's own hook for
+   deciding a label, so the counter lives out here and is shared by every file. */
+const shared = new Map(); // "TAG value" -> placeholder
+const perTag = new Map(); // TAG -> next index
+const prefix = opts.prefix || "";
+const sharedMask = (s) => {
+  const key = s.tag + " " + s.value;
+  let label = shared.get(key);
+  if (label === undefined) {
+    if (opts.plain) {
+      label = "[" + prefix + s.tag + "]";
+    } else {
+      const i = (perTag.get(s.tag) || 0) + 1;
+      perTag.set(s.tag, i);
+      label = "[" + prefix + s.tag + "_" + i + "]";
+    }
+    shared.set(key, label);
+  }
+  return label;
+};
+
 let out = "";
 let total = 0;
 const tags = new Map();
+const allFindings = [];
 for (const c of chunks) {
   let r;
-  try { r = redact(c.text, { ...detOpts, numbered: !opts.plain, prefix: opts.prefix || "" }); }
+  try { r = redact(c.text, { ...detOpts, mask: sharedMask }); }
   catch (e) { fail(cliMsg(e.message)); }
   if (r.hazard) refuseHazard(c.name, r.hazard);
   out += r.text;
   total += r.count;
+  for (const f of r.findings) {
+    /* no `value`: --json is a thing people redirect into a file or a CI artifact. */
+    allFindings.push({ file: c.name, line: f.line, tag: f.tag, detector: f.detector, placeholder: f.placeholder });
+  }
   for (const t of r.tags) tags.set(t.tag, (tags.get(t.tag) || 0) + t.count);
 }
 
 if (opts.json) {
-  const payload = { count: total, hazard: null, text: out,
-    tags: [...tags.entries()].map(([tag, count]) => ({ tag, count })) };
+  const payload = { count: total, hazard: null,
+    tags: [...tags.entries()].map(([tag, count]) => ({ tag, count })),
+    findings: allFindings, text: out };
   const body = JSON.stringify(payload, null, 2) + "\n";
-  if (opts.out) writeFileSync(opts.out, body); else process.stdout.write(body);
+  if (opts.out) writeOut(opts.out, body); else process.stdout.write(body);
 } else if (opts.out) {
-  writeFileSync(opts.out, out);
+  writeOut(opts.out, out);
 } else {
   process.stdout.write(out);
 }
