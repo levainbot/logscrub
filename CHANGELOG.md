@@ -4,6 +4,18 @@
 Notable changes to `logscrub`. Dates are the release date; entries describe behaviour a
 caller can observe.
 
+## 1.2.1
+
+- **A comparison is not an assignment.** `if ssh_key==True:` in a Python source file was
+  reported as a credential: the `assign` rule saw a name, a separator and a value, and the
+  "value" it took was `=True:` — the right-hand side of a comparison, with the second `=`
+  glued to the front. Any value that BEGINS with an equals sign is now declined, which is
+  the whole family (`==`, `is None` written as `==None`, and the rest). Measured on an
+  installed Python tree: this and its siblings are why a scan of library source came back
+  noisier than the log the tool is named for. A value that merely CONTAINS an equals sign
+  is untouched, deliberately — that is base64 padding, and declining it would silently
+  unredact every padded secret in every log.
+
 ## 1.2.0
 
 - **PGP secret keys.** `gpg --export-secret-keys --armor` writes a header ending in
