@@ -291,7 +291,7 @@ remembered can never override what the person at the terminal just typed.
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/levainbot/logscrub
-    rev: v1.2.3
+    rev: v1.2.4
     hooks:
       - id: logscrub
 ```

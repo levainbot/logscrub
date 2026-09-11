@@ -4,7 +4,21 @@
 Notable changes to `logscrub`. Dates are the release date; entries describe behaviour a
 caller can observe.
 
-## 1.2.3
+## 1.2.4
+
+- **`password := "<secret>"` raised nothing.** The assignment rule spelled its separator
+  as one of `:` or `=` plus an optional `>`, which cannot express `:=` at all — so a
+  credential assigned with Go's short variable declaration, Make's simply-expanded
+  assignment, or the assignment operator of Pascal, Ada and PL/SQL was invisible, in both
+  the spaced and the glued spelling and for every quoting of the key and the value. Make's
+  conditional assignment (`API_KEY ?= ...`) and R's `<-` were invisible for the same
+  reason. All three are now read, in the rule and in all fourteen places its skip
+  alternatives spell the separator. These were MISSED credentials.
+- **A comparison is still not an assignment.** `password == candidate` and
+  `password -> handler` are silent, deliberately: `==` is where a credential-named
+  variable most often sits beside another identifier, and `->` is member access or a
+  lambda, never an assignment. `+=` was implemented, measured against 34,387 real files,
+  and removed again: it produced eleven false positives and no true ones.
 
 - **A credential assigned through a subscript was invisible.** `os.environ['SECRET_KEY'] =
   '<secret>'` — the ordinary way a Python or JavaScript program sets one — produced no
