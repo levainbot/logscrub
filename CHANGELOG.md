@@ -4,7 +4,14 @@
 Notable changes to `logscrub`. Dates are the release date; entries describe behaviour a
 caller can observe.
 
-## 1.2.4
+## 1.2.5
+
+- **A placeholder value that begins with `=` is declined again.** Narrowing the
+  "value starts with `=`" skip rule so it would stop swallowing `password := <secret>`
+  also stopped it reading `"password": ==None`, a documentation placeholder, which briefly
+  became a false positive. The rule now spells `:` as an operator again but requires
+  whitespace before the `=`, which is the difference between a placeholder and an
+  assignment written `:=`.
 
 - **`password := "<secret>"` raised nothing.** The assignment rule spelled its separator
   as one of `:` or `=` plus an optional `>`, which cannot express `:=` at all — so a
