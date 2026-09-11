@@ -17,7 +17,7 @@ caller can observe.
 - **A comparison is still not an assignment.** `password == candidate` and
   `password -> handler` are silent, deliberately: `==` is where a credential-named
   variable most often sits beside another identifier, and `->` is member access or a
-  lambda, never an assignment. `+=` was implemented, measured against 34,387 real files,
+  lambda, never an assignment. `+=` was implemented, measured against 18,427 real files,
   and removed again: it produced eleven false positives and no true ones.
 
 - **A credential assigned through a subscript was invisible.** `os.environ['SECRET_KEY'] =
