@@ -4,7 +4,20 @@
 Notable changes to `logscrub`. Dates are the release date; entries describe behaviour a
 caller can observe.
 
-## 1.2.5
+## 1.2.6
+
+- **A credential declared with a type annotation raised nothing.** In a typed language the
+  type sits between the name and the assignment operator, and the assignment rule had no
+  room for one: it took the first separator, read the type as the value, and declined it.
+  `api_key: str = "<secret>"` (Python), `const apiKey: string = "<secret>"` (TypeScript),
+  `val apiSecret: String = "<secret>"` (Kotlin, Scala), `let api_key: &str = "<secret>"`
+  (Rust), `let apiKey: String = "<secret>"` (Swift) and `Api_Secret : constant String :=
+  "<secret>"` (Ada, Pascal, Delphi) were all invisible. They are found now. The annotation
+  is accepted only in front of a QUOTED value: after a type, an unquoted value is code
+  rather than a credential, so `resource_owner_secret: str = None):` and `self.old_keys:
+  set[str] = set()` stay declined. The space-only form with no colon to anchor on
+  (`var apiKey string = "<secret>"`) is a different family and is still missed; the
+  "what it misses" list says so.
 
 - **A placeholder value that begins with `=` is declined again.** Narrowing the
   "value starts with `=`" skip rule so it would stop swallowing `password := <secret>`
