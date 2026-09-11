@@ -4,7 +4,34 @@
 Notable changes to `logscrub`. Dates are the release date; entries describe behaviour a
 caller can observe.
 
-## 1.2.1
+## 1.2.3
+
+- **A credential assigned through a subscript was invisible.** `os.environ['SECRET_KEY'] =
+  '<secret>'` — the ordinary way a Python or JavaScript program sets one — produced no
+  finding at all, because the assignment rule could read a quoted key but could not cross
+  the `']` that closes it. It now can, in the rule and in every one of its skip
+  alternatives. This was a MISSED credential.
+- **A quoted string in a ternary is no longer read as a key.** `socket.authorized ?
+  'authorized' : 'unauthorized'` reported `unauthorized` as a secret; the colon there is an
+  operator, not an assignment. A password in a URL query string (`?password=...`) is a real
+  assignment and is still caught — the difference is the quote, not the question mark.
+
+
+- **A quoted key is still a key, and a single-quoted one was invisible.** `'password':
+  'sXAm8YVh...'` — the ordinary way Python and black write a dict — produced no finding at
+  all, while the same line with double quotes was redacted. The key's optional quote was
+  spelled `"` and nothing else, in the assignment rule and in every one of its skip
+  alternatives. It is now either quote character. This was a MISSED credential, not a
+  cosmetic issue, and it was found by sweeping the true-positive corpus across eight key
+  spellings rather than by reading the pattern.
+- **The same two characters were also causing false positives, in the other direction.**
+  Six of the nine skip alternatives that decline a non-credential VALUE SHAPE — a function
+  call, a subscript, a dotted attribute — spelled the key half without that optional
+  quote, so `"privkey": usage.CompleteFiles("*.pem"),` was reported as a secret while
+  `privkey: usage.CompleteFiles("*.pem"),` one line below it was correctly ignored. Across
+  two installed dependency trees this removed 106 false positives (55 in Python, 51 in
+  JavaScript) and moved real log output and shipped documentation by exactly zero, which
+  is what a rule about source-code syntax should do to a stream of values.
 
 - **A comparison is not an assignment.** `if ssh_key==True:` in a Python source file was
   reported as a credential: the `assign` rule saw a name, a separator and a value, and the
