@@ -4,7 +4,37 @@
 Notable changes to `logscrub`. Dates are the release date; entries describe behaviour a
 caller can observe.
 
-## 1.2.6
+## 1.2.7
+
+- **A credential declared with a type and no colon raised nothing.** The entry below
+  taught the assignment rule to read a type annotation marked by a colon, and said the
+  space-only form was still missed. It is read now. Go, PL/SQL, T-SQL and Visual Basic put
+  the type after the name with no punctuation at all, so `var apiKey string = "<secret>"`,
+  `const apiKey string = "<secret>"`, `v_password VARCHAR2(64) := '<secret>'`,
+  `v_api_key CONSTANT VARCHAR2(64) := '<secret>'`, `DECLARE @api_key NVARCHAR(64) =
+  '<secret>'`, `@password nvarchar(max) = '<secret>'`, `Dim apiKey As String = "<secret>"`
+  and `Const apiSecret As String = "<secret>"` were all invisible.
+
+  A space is a much weaker anchor than a colon, so this form is deliberately narrower than
+  the colon form: the value must be QUOTED, and the type must be one of a fixed list of
+  string type names (`string`, `str`, `varchar`, `varchar2`, `nvarchar`, `char`, `nchar`,
+  `text`, `clob`, with an optional width) rather than any identifier. Two identifiers
+  separated by a space are ordinary English; a key name followed by `string` and an `=` is
+  not. So `var apiKey string = os.Getenv("API_KEY")` and `var apiKey string = defaultKey`
+  are still declined as code, `Dim password As String` and `v_password VARCHAR2(64);` are
+  still declarations rather than assignments, and a `--password string` line in a
+  command's help output is still help output.
+
+  Measured before shipping by running the new engine and the old one side by side over the
+  installed Node tree, the installed Python tree, `/usr/share/doc` and `/usr/share/man`: no
+  finding added, and no finding lost.
+
+- **What is still missed, restated.** The sweep that found the space form found four
+  families it does not fix, and the "what it misses" list on the web page now names the two
+  that matter most: a variable whose NAME begins with a sigil (PHP and Perl's `$password =
+  "<secret>"`) and a value whose LITERAL begins with one (Objective-C's `@"..."`, Python's
+  `f"..."` and `b"..."`, C#'s `$"..."`). Each is a separate rule with its own cost to
+  measure, not a widening of this one.
 
 - **A credential declared with a type annotation raised nothing.** In a typed language the
   type sits between the name and the assignment operator, and the assignment rule had no
